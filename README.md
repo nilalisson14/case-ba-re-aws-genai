@@ -21,7 +21,8 @@ Ver especificação completa em [`docs/caso_de_uso_projeto3.md`](docs/caso_de_us
 
 ## 2. Arquitetura
 
-```flowchart TB
+```
+flowchart TB
     A["Analista - usuario"]
 
     subgraph API["Camada de API"]
