@@ -1,0 +1,44 @@
+flowchart TB
+    subgraph Usuarios["Camada de Uso"]
+        A["Analista (usuário)"]
+        AV["Avaliação de Qualidade<br/>RAGAS local · faithfulness / relevancy"]
+    end
+
+    subgraph API["Camada de API"]
+        FU["Lambda Function URL<br/>POST /v1/queries"]
+        L["AWS Lambda (Python 3.12)<br/>Orquestração + contrato JSON<br/>answer · citations[] · model_version"]
+    end
+
+    subgraph RAG["Camada RAG - Amazon Bedrock"]
+        KB["Bedrock Knowledge Base<br/>RetrieveAndGenerate"]
+        EMB["Titan Text Embeddings V2"]
+        GEN["Modelo de geração<br/>Amazon Nova 2 Lite"]
+        VS["S3 Vectors<br/>índice vetorial de baixo custo"]
+    end
+
+    subgraph Dados["Camada de Dados - Ingestão"]
+        S3["Bucket S3<br/>Corpus sintético (pareceres + manual + nota técnica)<br/>SSE-S3 · acesso público bloqueado · tags"]
+        SYNC["Sincronização da KB<br/>chunking + embeddings automáticos"]
+    end
+
+    subgraph Gov["Governança e Auditoria"]
+        CW["CloudWatch Logs<br/>usuário · timestamp · prompt<br/>resposta · fontes · versão do modelo"]
+        CT["CloudTrail<br/>chamadas de API Bedrock"]
+        BG["AWS Budgets<br/>alertas US$ 5 / US$ 10"]
+        IAM["IAM + MFA<br/>usuário admin dedicado"]
+    end
+
+    A -->|"pergunta em linguagem natural"| FU
+    FU --> L
+    L -->|"RetrieveAndGenerate"| KB
+    KB --> EMB
+    KB --> GEN
+    KB <-->|"busca semântica"| VS
+    S3 --> SYNC --> VS
+    KB -->|"resposta + citações"| L
+    L -->|"JSON com evidências"| FU --> A
+    L -.->|"trilha de auditoria (HU-04)"| CW
+    KB -.-> CT
+    AV -.->|"consultas de teste via API"| FU
+    IAM -.-> L
+    BG -.-> Gov
