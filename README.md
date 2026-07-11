@@ -172,9 +172,18 @@ O passo a passo completo de execução, incluindo decisões técnicas e problema
 
 ## 12. Evolução mapeada
 
-- Interface conversacional com histórico de sessão (suportado nativamente pela API RetrieveAndGenerate)
-- Padronização de idioma de resposta (o sistema espelhou o idioma da pergunta sem instrução explícita — observado durante os testes da Fase 2)
-- Segundo endpoint dedicado à verificação de consistência (HU-03) como funcionalidade de primeira classe, não apenas resultado colateral de uma boa consulta
+Este case é construído como uma trilha de evolução deliberada, não um projeto fechado. As próximas etapas foram escolhidas observando o que o mercado de AI Engineer remoto (Brasil e internacional) tem pedido com mais frequência em 2026:
+
+
+Interface conversacional com histórico de sessão (suportado nativamente pela API RetrieveAndGenerate)
+Exposição via protocolo MCP (Model Context Protocol) — agentes que conectam serviços via Python, tema recorrente em vagas de AI Engineer que envolvem integração entre múltiplos sistemas
+Orquestração multi-agente (frameworks como LangChain/LangGraph ou crewAI) como camada acima do RAG atual, para cenários que exigem mais de uma etapa de raciocínio ou mais de uma fonte de dados
+Padronização de idioma de resposta (o sistema espelhou o idioma da pergunta sem instrução explícita — observado durante os testes da Fase 2)
+Segundo endpoint dedicado à verificação de consistência (HU-03) como funcionalidade de primeira classe, não apenas resultado colateral de uma boa consulta
+Estruturas de prompt e avaliação de modelo mais formalizadas (prompt versionado, critérios de avaliação explícitos por caso de uso), aproximando o case de práticas de governança de IA generativa em ambiente corporativo
+
+
+A lógica por trás dessa lista: cada item é ao mesmo tempo uma evolução técnica genuína do case e uma competência buscada de forma recorrente em vagas de transição BA/RE → AI Engineer.
 
 ## 13. Sobre o autor
 
