@@ -4,7 +4,7 @@
 
 Estudo de caso demonstrativo com implementação de referência. O objetivo é mostrar rastreabilidade completa: **requisito especificado → arquitetura → implementação → evidência → avaliação de qualidade**.
 
-**Status do projeto:** em andamento. Fases 0 a 2 concluídas (infraestrutura, dados, RAG funcional). Próximas: API (Lambda), auditoria, avaliação RAGAS.
+**Status do projeto:** em andamento. Fases 0 a 3 concluídas (infraestrutura, dados, RAG funcional, API em produção). Próximas: auditoria estruturada, avaliação RAGAS.
 
 **Autor:** Nil Alisson A. Pereira — Analista de Requisitos / Engenheiro de Requisitos Sênior
 [LinkedIn](https://linkedin.com/in/nilalisson) · [Site](https://nilalisson.com.br) · nilalisson@gmail.com
@@ -23,48 +23,49 @@ Ver especificação completa em [`docs/caso_de_uso_projeto3.md`](docs/caso_de_us
 
 ```mermaid
 flowchart TB
-    A["Analista - usuario"]
+    subgraph Usuarios["Camada de Uso"]
+        A["Analista (usuário)"]
+        AV["Avaliação de Qualidade<br/>RAGAS local · faithfulness / relevancy"]
+    end
 
     subgraph API["Camada de API"]
         FU["Lambda Function URL<br/>POST /v1/queries"]
-        L["AWS Lambda Python 3.12<br/>Orquestracao + contrato JSON"]
+        L["AWS Lambda (Python 3.12)<br/>Orquestração + contrato JSON<br/>answer · citations[] · model_version"]
     end
 
     subgraph RAG["Camada RAG - Amazon Bedrock"]
         KB["Bedrock Knowledge Base<br/>RetrieveAndGenerate"]
         EMB["Titan Text Embeddings V2"]
-        GEN["Amazon Nova 2 Lite"]
-        VS["S3 Vectors"]
+        GEN["Modelo de geração<br/>Amazon Nova 2 Lite"]
+        VS["S3 Vectors<br/>índice vetorial de baixo custo"]
     end
 
-    subgraph Dados["Camada de Dados"]
-        S3["Bucket S3<br/>Corpus sintetico"]
-        SYNC["Sincronizacao da KB"]
+    subgraph Dados["Camada de Dados - Ingestão"]
+        S3["Bucket S3<br/>Corpus sintético (pareceres + manual + nota técnica)<br/>SSE-S3 · acesso público bloqueado · tags"]
+        SYNC["Sincronização da KB<br/>chunking + embeddings automáticos"]
     end
 
-    subgraph Gov["Governanca e Auditoria"]
-        CW["CloudWatch Logs"]
-        CT["CloudTrail"]
-        BG["AWS Budgets"]
-        IAM["IAM mais MFA"]
+    subgraph Gov["Governança e Auditoria"]
+        CW["CloudWatch Logs<br/>usuário · timestamp · prompt<br/>resposta · fontes · versão do modelo"]
+        CT["CloudTrail<br/>chamadas de API Bedrock"]
+        BG["AWS Budgets<br/>alertas US$ 5 / US$ 10"]
+        IAM["IAM + MFA<br/>usuário admin dedicado"]
     end
 
-    AV["Avaliacao RAGAS"]
-
-    A --> FU
+    A -->|"pergunta em linguagem natural"| FU
     FU --> L
-    L --> KB
+    L -->|"RetrieveAndGenerate"| KB
     KB --> EMB
     KB --> GEN
-    KB <--> VS
-    S3 --> SYNC
-    SYNC --> VS
-    KB --> L
-    L --> FU
-    L -.-> CW
+    KB <-->|"busca semântica"| VS
+    S3 --> SYNC --> VS
+    KB -->|"resposta + citações"| L
+    L -->|"JSON com evidências"| FU --> A
+    L -.->|"trilha de auditoria (HU-04)"| CW
     KB -.-> CT
-    AV -.-> FU
+    AV -.->|"consultas de teste via API"| FU
     IAM -.-> L
+    BG -.-> Gov
 ```
 
 Diagrama fonte em [`diagrams/arquitetura_case_aws.mermaid`](diagrams/arquitetura_case_aws.mermaid).
@@ -116,7 +117,37 @@ Especificação completa com critérios BDD em [`docs/caso_de_uso_projeto3.md`](
 }
 ```
 
-**Resposta real da API implementada:** pendente (Fase 3 — Lambda + Function URL). Esta seção será atualizada com o JSON real assim que a API estiver no ar.
+**Resposta real da API implementada** (Lambda + Function URL, testada via curl):
+
+```json
+{
+  "answer": "The validity period of the Environmental Monitoring Device Model DX-7's registration has been adjusted to 18 months, counting from the date of issuance of the original opinion (14/02/2026)...",
+  "citations": [
+    {
+      "document": "s3://nil-case-genai-docs/ANVF-PT-2026-001-R1_Parecer_Revisao.pdf",
+      "excerpt": "O requerente apresentou novos dados de estabilidade que resultam em ajuste do prazo de validade originalmente concedido. [...] o prazo de validade de registro é retificado de 24 meses para 18 (dezoito) meses..."
+    },
+    {
+      "document": "s3://nil-case-genai-docs/ANVF-PT-2026-001-R1_Parecer_Revisao.pdf",
+      "excerpt": "Agência Nacional de Vigilância Fictícia — ANVF [...] ANVF-PT-2026-001-R1 | Revisão 1 | 30/05/2026..."
+    },
+    {
+      "document": "s3://nil-case-genai-docs/ANVF-NT-2026-010_Nota_Tecnica.pdf",
+      "excerpt": "O prazo retificado prevalece sobre o prazo original a partir da data de emissão da revisão [...] exemplifica a aplicação correta deste procedimento."
+    },
+    {
+      "document": "s3://nil-case-genai-docs/ANVF-PT-2026-001_Parecer_Original.pdf",
+      "excerpt": "Os ensaios apresentados pelo requerente atendem aos parâmetros de referência para produtos da Classe II. [...] prazo de validade de registro de 24 (vinte e quatro) meses..."
+    }
+  ],
+  "citations_count": 4,
+  "model_version": "arn:aws:bedrock:us-east-1:539562792209:inference-profile/us.amazon.nova-2-lite-v1:0"
+}
+```
+
+Diferenças conscientes entre o especificado e o implementado: `page` foi substituído por URI completo do S3 (mais rastreável que número de página para documentos gerados dinamicamente); `confidence` foi substituído por `citations_count`, que se mostrou uma métrica mais direta de checar na prática. Ambas as mudanças estão documentadas aqui em vez de silenciosamente divergentes — rastreabilidade entre especificação e implementação inclui documentar onde e por que elas diferem.
+
+Código da Lambda em [`lambda/lambda_function.py`](lambda/lambda_function.py).
 
 ## 5. Validação funcional (via console Bedrock)
 
@@ -174,14 +205,12 @@ O passo a passo completo de execução, incluindo decisões técnicas e problema
 
 Este case é construído como uma trilha de evolução deliberada, não um projeto fechado. As próximas etapas foram escolhidas observando o que o mercado de AI Engineer remoto (Brasil e internacional) tem pedido com mais frequência em 2026:
 
-
-Interface conversacional com histórico de sessão (suportado nativamente pela API RetrieveAndGenerate)
-Exposição via protocolo MCP (Model Context Protocol) — agentes que conectam serviços via Python, tema recorrente em vagas de AI Engineer que envolvem integração entre múltiplos sistemas
-Orquestração multi-agente (frameworks como LangChain/LangGraph ou crewAI) como camada acima do RAG atual, para cenários que exigem mais de uma etapa de raciocínio ou mais de uma fonte de dados
-Padronização de idioma de resposta (o sistema espelhou o idioma da pergunta sem instrução explícita — observado durante os testes da Fase 2)
-Segundo endpoint dedicado à verificação de consistência (HU-03) como funcionalidade de primeira classe, não apenas resultado colateral de uma boa consulta
-Estruturas de prompt e avaliação de modelo mais formalizadas (prompt versionado, critérios de avaliação explícitos por caso de uso), aproximando o case de práticas de governança de IA generativa em ambiente corporativo
-
+- **Interface conversacional com histórico de sessão** (suportado nativamente pela API RetrieveAndGenerate)
+- **Exposição via protocolo MCP** (Model Context Protocol) — agentes que conectam serviços via Python, tema recorrente em vagas de AI Engineer que envolvem integração entre múltiplos sistemas
+- **Orquestração multi-agente** (frameworks como LangChain/LangGraph ou crewAI) como camada acima do RAG atual, para cenários que exigem mais de uma etapa de raciocínio ou mais de uma fonte de dados
+- **Padronização de idioma de resposta** (o sistema espelhou o idioma da pergunta sem instrução explícita — observado durante os testes da Fase 2)
+- **Segundo endpoint dedicado à verificação de consistência** (HU-03) como funcionalidade de primeira classe, não apenas resultado colateral de uma boa consulta
+- **Estruturas de prompt e avaliação de modelo mais formalizadas** (prompt versionado, critérios de avaliação explícitos por caso de uso), aproximando o case de práticas de governança de IA generativa em ambiente corporativo
 
 A lógica por trás dessa lista: cada item é ao mesmo tempo uma evolução técnica genuína do case e uma competência buscada de forma recorrente em vagas de transição BA/RE → AI Engineer.
 
