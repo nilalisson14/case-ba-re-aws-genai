@@ -2,7 +2,7 @@
 
 Objetivo: transformar o Projeto 3 (estudo de caso) em implementação demonstrável, com evidências para o portfólio e repositório GitHub. Orçamento alvo: menos de US$ 5 no total.
 
-**Status atual (10/07/2026):** Fases 0, 1 e 2 concluídas. Em andamento: Fase 3 (API mínima com Lambda).
+**Status atual (12/07/2026):** Fases 0, 1, 2 e 3 concluídas. Em andamento: Fase 4 (auditoria/CloudWatch estruturado).
 
 ## Fase 0 — Conta e proteção de custo ✅ CONCLUÍDA
 
@@ -75,7 +75,28 @@ Modelo usado: Nova 2 Lite (US). Modo: Standard retrieval with answer generation.
 
 Evidência gerada: 3 prints com respostas e chunks-fonte expandidos (Details). Materializa integralmente a HU-02 e parcialmente a HU-03 e HU-04.
 
-## Fase 3 — API mínima (2 a 3 h) ⬜ PENDENTE
+## Fase 3 — API mínima (2 a 3 h) ✅ CONCLUÍDA
+
+> **Nota de direcionamento de carreira (10/07/2026):** decidido manter esta fase como API REST simples (Lambda + Function URL). A exposição via protocolo MCP (Model Context Protocol) — relevante para vagas de AI Engineer que pedem "agentes usando MCP e Python" — fica registrada como Fase 8, a ser feita depois que a Fase 3 estiver estável. Isso evita acumular complexidade antes da hora e ainda rende um post de evolução ("da API REST ao agente MCP").
+
+### O que foi feito
+
+- Role IAM `nil-case-genai-lambda-role` criada (AWS service → Lambda), com policies `AmazonBedrockFullAccess` e `AWSLambdaBasicExecutionRole` anexadas
+- Função Lambda `nil-case-genai-query` (Python 3.12), handler `lambda_function.handler`, timeout 30s
+- Variáveis de ambiente: `KNOWLEDGE_BASE_ID=BWUY1OTUI2`, `MODEL_ARN=arn:aws:bedrock:us-east-1:539562792209:inference-profile/us.amazon.nova-2-lite-v1:0`
+- Function URL criada, Auth type `NONE` (ressalva de segurança documentada: em produção real exigiria autenticação)
+- Testado via `curl` no CloudShell: resposta correta (18 meses, citando o documento retificado), contrato JSON completo (`answer`, `citations[]`, `citations_count`, `model_version`)
+
+### Problemas encontrados e corrigidos durante a implementação
+
+1. **Nome da role duplicado na primeira tentativa** (`nil-case-genai-lambda-rolenil-case-genai-lambda-role`) — campo não foi limpo antes de digitar. Corrigido recriando a role.
+2. **HTTP 403 / AccessDeniedException** ao chamar a Function URL — causa raiz: a role não tinha a policy `AWSLambdaBasicExecutionRole`, então a Lambda não conseguia nem escrever logs no CloudWatch, e a execução falhava antes de chegar ao código. Corrigido anexando a policy.
+3. **Erro de leitura de URL** — um caractere da Function URL foi confundido entre a letra "O" maiúscula e o número "0" ao copiar de um print. Resolvido obtendo a URL exata via `aws lambda get-function-url-config` no CloudShell, em vez de digitar a partir de uma imagem.
+4. **Citações duplicadas na primeira versão do código** — a API RetrieveAndGenerate do Bedrock retorna uma citação por segmento de resposta gerado, então a mesma fonte aparecia repetida (8 citações brutas para uma resposta que usava só 4 trechos distintos). Corrigido com deduplicação por chave (documento + trecho), preservando trechos diferentes de um mesmo documento como citações distintas.
+
+### Evidência
+
+Resposta real da API (JSON completo) documentada na Seção 5 do README do repositório. Resultado: `citations_count: 4`, resposta correta citando o documento retificado (R1) e a nota técnica.
 
 1. Criar função Lambda (Python 3.12) que recebe uma pergunta e chama a API RetrieveAndGenerate da Knowledge Base.
 2. Retornar JSON com answer, citations[] e model_version, espelhando o contrato de API do case.
@@ -120,3 +141,18 @@ Evidência: trecho do JSON de resposta no README, lado a lado com o contrato esp
 ## Ordem de execução sugerida
 
 Fases 0 a 2 em um dia (já geram evidência de RAG funcionando). Fases 3 a 5 no segundo dia. Fase 6 e 7 no terceiro. Total: cerca de 10 a 12 horas de trabalho distribuídas.
+
+## Fase 8 — Exposição via protocolo MCP (2 a 4 h) ⬜ PENDENTE — evolução pós-Fase 3
+
+**Objetivo:** transformar a API REST da Fase 3 em (ou complementar com) um servidor MCP (Model Context Protocol), expondo a consulta à Knowledge Base como uma ferramenta (tool) que qualquer cliente compatível com MCP pode invocar — não apenas uma API HTTP tradicional.
+
+**Por que isso importa para o direcionamento de carreira:** vagas de AI Engineer (ex.: integração entre produtos de RH, agentes conversacionais substituindo telas estáticas) pedem explicitamente experiência com "agentes usando protocolo MCP e Python, conectando serviços". Esta fase é a peça do portfólio que demonstra essa competência de forma direta, construída sobre a mesma lógica de negócio já validada nas Fases 1-3 (não é um projeto novo, é uma evolução do mesmo case).
+
+1. Estruturar a Lambda existente (ou uma nova) como servidor MCP usando o SDK oficial (`mcp` para Python).
+2. Expor a consulta à Knowledge Base como uma tool MCP, por exemplo `consultar_documentos_regulatorios(pergunta: str) -> dict`, mantendo o mesmo contrato de resposta (answer + citations) já especificado.
+3. Testar localmente com um cliente MCP (ex.: Claude Desktop com conector customizado, ou o inspector oficial do protocolo).
+4. Documentar no README a diferença entre o endpoint REST (Fase 3, para qualquer consumidor HTTP) e a interface MCP (Fase 8, para agentes/LLMs que orquestram múltiplas ferramentas).
+
+Evidência: print do cliente MCP invocando a tool e recebendo resposta com citações; trecho de código do servidor MCP.
+
+**Post de LinkedIn sugerido para esta fase:** narrativa de evolução ("comecei com uma API REST simples, evoluí para o protocolo que conecta agentes de IA a serviços") — funciona bem como ponte para o público de AI Engineer sem abandonar o tom de analista que já vem sendo usado na série.
