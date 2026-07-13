@@ -77,7 +77,7 @@ Evidência gerada: 3 prints com respostas e chunks-fonte expandidos (Details). M
 
 ## Fase 3 — API mínima (2 a 3 h) ✅ CONCLUÍDA
 
-> **Nota de direcionamento de carreira (10/07/2026):** decidido manter esta fase como API REST simples (Lambda + Function URL). A exposição via protocolo MCP (Model Context Protocol) — relevante para vagas de AI Engineer que pedem "agentes usando MCP e Python" — fica registrada como Fase 8, a ser feita depois que a Fase 3 estiver estável. Isso evita acumular complexidade antes da hora e ainda rende um post de evolução ("da API REST ao agente MCP").
+> **Nota de direcionamento de carreira (13/07/2026):** decidido manter esta fase como API REST simples (Lambda + Function URL), sem exposição via protocolo MCP neste case. MCP, Bedrock Agents e guardrails ficam reservados para um Projeto 2 dedicado a agentes — ver seção "Escopo final deste case" e "Projeto 2" ao final deste documento. Isso permite fechar este case mais rápido, com um argumento coeso (RAG + Engenharia de Requisitos), em vez de acumular fases avançadas que atrasariam a conclusão.
 
 ### O que foi feito
 
@@ -105,11 +105,27 @@ Resposta real da API (JSON completo) documentada na Seção 5 do README do repos
 
 Evidência: trecho do JSON de resposta no README, lado a lado com o contrato especificado no case. É o argumento mais forte do portfólio: especificação e implementação batendo.
 
-## Fase 4 — Auditoria e observabilidade (1 h) ⬜ PENDENTE
+## Nota de escopo — Bedrock Agent (12/07/2026)
 
-1. Na Lambda, logar em CloudWatch: usuário simulado, timestamp, pergunta, resposta, fontes e versão do modelo (HU-04).
-2. Confirmar que CloudTrail está registrando as chamadas ao Bedrock (ativado por padrão para eventos de gerenciamento).
-3. Print dos logs como evidência da trilha de auditoria.
+Avaliamos incorporar um Bedrock Agent (orquestração multi-step, action groups) a este case, inspirado em um diagrama de referência assistido no YouTube. Decisão: **não incorporar aqui**. Motivos:
+
+- Troca a arquitetura de pipeline fixo (RetrieveAndGenerate) por orquestração não determinística — exige reescrever a Lambda principal, criar Lambdas de ferramenta com schema OpenAPI, e revalidar tudo, já que a mesma pergunta pode gerar sequências de passos diferentes em execuções diferentes
+- Estimativa: 2-3 dias de trabalho focado, o que atrasaria o fechamento das Fases 4 e 5 já planejadas
+- Um case fechado (0 a 5, depois 8) vale mais como portfólio do que um case permanentemente "em evolução"
+
+Agente com Bedrock Agents fica registrado como **Projeto 2, separado**, explorando orquestração multi-step e action groups — degrau acima deste case, que prova RAG + Engenharia de Requisitos. Diagramas de referência (atual e com agente) documentados em `diagrams/arquitetura_atual.mermaid` e `diagrams/arquitetura_com_agente.mermaid` para retomar quando o Projeto 2 começar.
+
+## Fase 4 — Trilha de auditoria estruturada (1 h) ⬜ PENDENTE
+
+**Ponto de partida:** a Lambda já loga um evento estruturado por consulta (`logger.info` com `event`, `question`, `citations_count`, `elapsed_ms`, `model_arn`), criado na Fase 3. Isso já vai para o CloudWatch Logs por padrão, no log group `/aws/lambda/nil-case-genai-query`. A Fase 4 formaliza isso para atender a HU-04 por completo, que pede também **usuário** e **fontes citadas** (não só a contagem).
+
+1. **Adicionar campo de usuário.** Como não há autenticação real na Function URL (Auth type NONE), simular um identificador — por exemplo, aceitar um campo opcional `user_id` no corpo da requisição, com fallback para `"anonimo"`. Documentar essa limitação no README: em produção real, isso viria de um token de autenticação.
+2. **Logar as fontes citadas por completo**, não só a contagem — incluir a lista de documentos (`s3://...`) usados em cada resposta, para permitir auditoria de qual documento sustentou qual decisão.
+3. **Confirmar retenção do log group.** Por padrão, logs do CloudWatch não expiram (retenção "Never expire"), o que gera custo crescente. Configurar retenção de 30 dias é suficiente para o case e é boa prática a documentar.
+4. **Confirmar que CloudTrail está registrando as chamadas ao Bedrock** (ativado por padrão para eventos de gerenciamento — não precisa configurar nada, só verificar em CloudTrail → Event history, filtrando por `bedrock-agent-runtime.amazonaws.com`).
+5. **Rodar uma consulta de teste e localizar o log correspondente no CloudWatch**, confirmando que usuário, pergunta, resposta (via citações) e versão do modelo aparecem juntos num único evento — isso é a trilha auditável.
+
+Evidência: print do log estruturado no CloudWatch Logs Insights (ou no log stream direto) mostrando os campos completos de uma consulta real.
 
 ## Fase 5 — Avaliação de qualidade (2 h, diferencial forte) ⬜ PENDENTE
 
@@ -142,17 +158,30 @@ Evidência: trecho do JSON de resposta no README, lado a lado com o contrato esp
 
 Fases 0 a 2 em um dia (já geram evidência de RAG funcionando). Fases 3 a 5 no segundo dia. Fase 6 e 7 no terceiro. Total: cerca de 10 a 12 horas de trabalho distribuídas.
 
-## Fase 8 — Exposição via protocolo MCP (2 a 4 h) ⬜ PENDENTE — evolução pós-Fase 3
+## Escopo final deste case (atualizado em 13/07/2026)
 
-**Objetivo:** transformar a API REST da Fase 3 em (ou complementar com) um servidor MCP (Model Context Protocol), expondo a consulta à Knowledge Base como uma ferramenta (tool) que qualquer cliente compatível com MCP pode invocar — não apenas uma API HTTP tradicional.
+Este case fecha na **Fase 7** (RAG + API + auditoria + avaliação, documentado e desligado). Duas peças mais avançadas foram avaliadas e conscientemente deixadas de fora daqui, para não atrasar o fechamento de um case coeso:
 
-**Por que isso importa para o direcionamento de carreira:** vagas de AI Engineer (ex.: integração entre produtos de RH, agentes conversacionais substituindo telas estáticas) pedem explicitamente experiência com "agentes usando protocolo MCP e Python, conectando serviços". Esta fase é a peça do portfólio que demonstra essa competência de forma direta, construída sobre a mesma lógica de negócio já validada nas Fases 1-3 (não é um projeto novo, é uma evolução do mesmo case).
+- **Protocolo MCP** (expor a consulta como ferramenta para qualquer cliente compatível)
+- **Bedrock Agent** (orquestração multi-step com action groups, ver nota acima)
 
-1. Estruturar a Lambda existente (ou uma nova) como servidor MCP usando o SDK oficial (`mcp` para Python).
-2. Expor a consulta à Knowledge Base como uma tool MCP, por exemplo `consultar_documentos_regulatorios(pergunta: str) -> dict`, mantendo o mesmo contrato de resposta (answer + citations) já especificado.
-3. Testar localmente com um cliente MCP (ex.: Claude Desktop com conector customizado, ou o inspector oficial do protocolo).
-4. Documentar no README a diferença entre o endpoint REST (Fase 3, para qualquer consumidor HTTP) e a interface MCP (Fase 8, para agentes/LLMs que orquestram múltiplas ferramentas).
+As duas ficam reservadas para o **Projeto 2**, junto com guardrails — três peças que fazem mais sentido demonstradas juntas, num case novo focado em agentes, do que espalhadas como fases extras de um case que já tem seu argumento completo (RAG + Engenharia de Requisitos). Ver seção "Projeto 2" ao final deste documento.
 
-Evidência: print do cliente MCP invocando a tool e recebendo resposta com citações; trecho de código do servidor MCP.
+**Post de LinkedIn sugerido:** narrativa de evolução ("terminei o case de RAG, o próximo já nasce puxando o fio que ficou de fora") — funciona como ponte natural para anunciar o Projeto 2 sem soar como abandono do primeiro.
 
-**Post de LinkedIn sugerido para esta fase:** narrativa de evolução ("comecei com uma API REST simples, evoluí para o protocolo que conecta agentes de IA a serviços") — funciona bem como ponte para o público de AI Engineer sem abandonar o tom de analista que já vem sendo usado na série.
+---
+
+## Projeto 2 (planejado, não iniciado) — Agente Regulatório com Guardrails
+
+Case novo, construído depois deste estar fechado e publicado. Reaproveita o corpus sintético (ANVF) e a Knowledge Base deste projeto como base de conhecimento, mas muda a arquitetura de pipeline fixo para orquestração de agente.
+
+**O que este projeto teria que o atual não tem:**
+
+- **Bedrock Agent**, não mais `RetrieveAndGenerate` direto — o agente decide se busca, se calcula, se busca de novo, antes de responder (ver `diagrams/arquitetura_com_agente.mermaid`, já esboçado)
+- **Action groups** (Lambdas de ferramenta): pelo menos duas, ex. calcular vencimento de prazo a partir de data + regra, e comparar dois documentos apontando divergências — a HU-03 deste case, resolvida de verdade em vez de por sorte estrutural da busca semântica
+- **Protocolo MCP**: expor o agente como ferramenta consultável por qualquer cliente compatível (Claude Desktop, outros agentes), não só via API REST
+- **Guardrails do Bedrock**: politicas explícitas de conteúdo e de tópico, coerente com a regra de negócio central ("a IA sugere e evidencia, o analista decide") — aqui isso vira configuração declarada, não só texto de especificação
+
+**Por que como projeto separado, não fase deste:** o comportamento de agente é não determinístico (mesma pergunta pode gerar sequências de passos diferentes entre execuções), o que muda completamente a forma de validar e documentar. Misturar isso neste case tornaria a Seção 5 (validação funcional) incomparável entre as fases. Um case novo permite desenhar a validação certa desde o início, em vez de encaixar depois.
+
+**Vagas que motivaram essa direção:** analisadas durante este projeto vagas de AI Engineer pedindo explicitamente "agentes usando protocolo MCP e Python" (Sankhya RH) e "engenharia de IA sênior com agentes, RAG, orquestração" (banco BV) — este segundo projeto mira diretamente esse perfil, enquanto o Projeto 1 (este) prova a base de Requisitos + RAG que sustenta a transição.
