@@ -201,18 +201,20 @@ Os 6 documentos usados (`ANVF-MP-001` a `ANVF-NT-2026-010`) representam uma agê
 
 O passo a passo completo de execução, incluindo decisões técnicas e problemas encontrados durante a implementação (ex.: nome inválido de data source na primeira tentativa), está documentado em [`roadmap/passo_a_passo.md`](roadmap/passo_a_passo.md). A infraestrutura será desprovisionada ao final do projeto (Fase 7); o ambiente é reproduzível seguindo o roadmap.
 
-## 12. Evolução mapeada
+## 12. Escopo final deste case e evolução mapeada
 
-Este case é construído como uma trilha de evolução deliberada, não um projeto fechado. As próximas etapas foram escolhidas observando o que o mercado de AI Engineer remoto (Brasil e internacional) tem pedido com mais frequência em 2026:
+Este case fecha aqui: RAG funcional, API própria, trilha de auditoria e avaliação de qualidade (Fases 0 a 7). Duas peças avançadas foram avaliadas — inspiradas em um diagrama de referência com Bedrock Agent — e conscientemente deixadas de fora, para fechar um case coeso em vez de acumular fases:
+
+- **Bedrock Agent** (orquestração multi-step com action groups, decidindo sozinho se busca, calcula ou busca de novo antes de responder)
+- **Protocolo MCP** (Model Context Protocol), expondo a consulta como ferramenta para qualquer cliente compatível
+
+As duas, junto com **guardrails do Bedrock**, ficam reservadas para um **Projeto 2** dedicado a agentes, reaproveitando o corpus e a Knowledge Base deste case como base de conhecimento. Diagramas de referência (arquitetura atual e arquitetura com agente) documentados em [`diagrams/`](diagrams/).
+
+Evoluções menores que ainda cabem dentro deste case, se retomado:
 
 - **Interface conversacional com histórico de sessão** (suportado nativamente pela API RetrieveAndGenerate)
-- **Exposição via protocolo MCP** (Model Context Protocol) — agentes que conectam serviços via Python, tema recorrente em vagas de AI Engineer que envolvem integração entre múltiplos sistemas
-- **Orquestração multi-agente** (frameworks como LangChain/LangGraph ou crewAI) como camada acima do RAG atual, para cenários que exigem mais de uma etapa de raciocínio ou mais de uma fonte de dados
-- **Padronização de idioma de resposta** (o sistema espelhou o idioma da pergunta sem instrução explícita — observado durante os testes da Fase 2)
+- **Padronização de idioma de resposta** (o sistema espelhou o idioma da pergunta sem instrução explícita, observado durante os testes da Fase 2)
 - **Segundo endpoint dedicado à verificação de consistência** (HU-03) como funcionalidade de primeira classe, não apenas resultado colateral de uma boa consulta
-- **Estruturas de prompt e avaliação de modelo mais formalizadas** (prompt versionado, critérios de avaliação explícitos por caso de uso), aproximando o case de práticas de governança de IA generativa em ambiente corporativo
-
-A lógica por trás dessa lista: cada item é ao mesmo tempo uma evolução técnica genuína do case e uma competência buscada de forma recorrente em vagas de transição BA/RE → AI Engineer.
 
 ## 13. Sobre o autor
 
