@@ -4,7 +4,7 @@
 
 Estudo de caso demonstrativo com implementação de referência. O objetivo é mostrar rastreabilidade completa: **requisito especificado → arquitetura → implementação → evidência → avaliação de qualidade**.
 
-**Status do projeto:** em andamento. Fases 0 a 3 concluídas (infraestrutura, dados, RAG funcional, API em produção). Próximas: auditoria estruturada, avaliação RAGAS.
+**Status do projeto:** em andamento. Fases 0 a 4 concluídas (infraestrutura, dados, RAG funcional, API em produção, trilha de auditoria). Próxima: avaliação RAGAS.
 
 **Autor:** Nil Alisson A. Pereira — Analista de Requisitos / Engenheiro de Requisitos Sênior
 [LinkedIn](https://linkedin.com/in/nilalisson) · [Site](https://nilalisson.com.br) · nilalisson@gmail.com
@@ -165,7 +165,29 @@ Antes de expor a API (Fase 3), a Knowledge Base foi testada diretamente no conso
 
 ## 6. Trilha de auditoria (HU-04)
 
-⬜ Pendente. Será implementada na Fase 4, registrando em CloudWatch Logs: usuário, timestamp, prompt, resposta, fontes citadas e versão do modelo.
+Implementada na Lambda: cada consulta gera um evento estruturado no CloudWatch Logs (log group `/aws/lambda/nil-case-genai-query`), com usuário, timestamp, pergunta, contagem e lista completa de documentos citados, tempo de resposta e versão do modelo.
+
+Evento real de uma consulta de teste:
+
+```json
+{
+  "event": "consulta_realizada",
+  "timestamp": "2026-07-14T00:39:19.271155+00:00",
+  "user_id": "nil.teste",
+  "question": "Qual o prazo de validade padrão para produtos de Classe III?",
+  "citations_count": 2,
+  "documentos_citados": [
+    "s3://nil-case-genai-docs/ANVF-MP-001_Manual_Procedimentos.pdf",
+    "s3://nil-case-genai-docs/ANVF-PT-2026-003_Parecer.pdf"
+  ],
+  "elapsed_ms": 1945,
+  "model_arn": "arn:aws:bedrock:us-east-1:539562792209:inference-profile/us.amazon.nova-2-lite-v1:0"
+}
+```
+
+Limitação documentada: a Function URL usa Auth type `NONE` (decisão de custo/simplicidade do case), então o campo `user_id` é informado livremente no corpo da requisição, não validado por autenticação real. Em produção, viria de um token. CloudTrail complementa essa trilha, registrando nativamente as chamadas de API ao Bedrock. Retenção do log group configurada para 30 dias.
+
+Achado: a consulta de teste levou 1945 ms de ponta a ponta, dado real de latência considerado na avaliação da Seção 7.
 
 ## 7. Avaliação de qualidade (RAGAS)
 
