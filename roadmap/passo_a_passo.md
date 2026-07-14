@@ -2,7 +2,7 @@
 
 Objetivo: transformar o Projeto 3 (estudo de caso) em implementação demonstrável, com evidências para o portfólio e repositório GitHub. Orçamento alvo: menos de US$ 5 no total.
 
-**Status atual (12/07/2026):** Fases 0, 1, 2 e 3 concluídas. Em andamento: Fase 4 (auditoria/CloudWatch estruturado).
+**Status atual (14/07/2026):** Fases 0, 1, 2, 3 e 4 concluídas. Em andamento: Fase 5 (avaliação de qualidade com RAGAS).
 
 ## Fase 0 — Conta e proteção de custo ✅ CONCLUÍDA
 
@@ -115,17 +115,39 @@ Avaliamos incorporar um Bedrock Agent (orquestração multi-step, action groups)
 
 Agente com Bedrock Agents fica registrado como **Projeto 2, separado**, explorando orquestração multi-step e action groups — degrau acima deste case, que prova RAG + Engenharia de Requisitos. Diagramas de referência (atual e com agente) documentados em `diagrams/arquitetura_atual.mermaid` e `diagrams/arquitetura_com_agente.mermaid` para retomar quando o Projeto 2 começar.
 
-## Fase 4 — Trilha de auditoria estruturada (1 h) ⬜ PENDENTE
+## Fase 4 — Trilha de auditoria estruturada (1 h) ✅ CONCLUÍDA
 
 **Ponto de partida:** a Lambda já loga um evento estruturado por consulta (`logger.info` com `event`, `question`, `citations_count`, `elapsed_ms`, `model_arn`), criado na Fase 3. Isso já vai para o CloudWatch Logs por padrão, no log group `/aws/lambda/nil-case-genai-query`. A Fase 4 formaliza isso para atender a HU-04 por completo, que pede também **usuário** e **fontes citadas** (não só a contagem).
 
-1. **Adicionar campo de usuário.** Como não há autenticação real na Function URL (Auth type NONE), simular um identificador — por exemplo, aceitar um campo opcional `user_id` no corpo da requisição, com fallback para `"anonimo"`. Documentar essa limitação no README: em produção real, isso viria de um token de autenticação.
-2. **Logar as fontes citadas por completo**, não só a contagem — incluir a lista de documentos (`s3://...`) usados em cada resposta, para permitir auditoria de qual documento sustentou qual decisão.
-3. **Confirmar retenção do log group.** Por padrão, logs do CloudWatch não expiram (retenção "Never expire"), o que gera custo crescente. Configurar retenção de 30 dias é suficiente para o case e é boa prática a documentar.
-4. **Confirmar que CloudTrail está registrando as chamadas ao Bedrock** (ativado por padrão para eventos de gerenciamento — não precisa configurar nada, só verificar em CloudTrail → Event history, filtrando por `bedrock-agent-runtime.amazonaws.com`).
-5. **Rodar uma consulta de teste e localizar o log correspondente no CloudWatch**, confirmando que usuário, pergunta, resposta (via citações) e versão do modelo aparecem juntos num único evento — isso é a trilha auditável.
+### O que foi feito
 
-Evidência: print do log estruturado no CloudWatch Logs Insights (ou no log stream direto) mostrando os campos completos de uma consulta real.
+1. **Campo de usuário adicionado.** Como não há autenticação real na Function URL (Auth type NONE), o código aceita um campo opcional `user_id` no corpo da requisição, com fallback para `"anonimo"`. Limitação documentada: em produção real, isso viria de um token de autenticação.
+2. **Lista completa de documentos citados no log**, não só a contagem — campo `documentos_citados`, com os URIs S3 de cada fonte distinta usada na resposta.
+3. **Timestamp explícito em ISO 8601** (`datetime.now(timezone.utc).isoformat()`), independente do timestamp que o CloudWatch já atribui automaticamente a cada linha — facilita consulta via Logs Insights.
+4. **Retenção do log group configurada para 30 dias** (era "Never expire" por padrão, o que gera custo crescente sem necessidade para um case).
+5. **CloudTrail confirmado** como registrando chamadas ao Bedrock nativamente (não exigiu configuração).
+
+### Evidência real
+
+Consulta de teste (`user_id: "nil.teste"`, pergunta sobre prazo de validade Classe III) gerou o seguinte evento estruturado no CloudWatch Logs:
+
+```json
+{
+  "event": "consulta_realizada",
+  "timestamp": "2026-07-14T00:39:19.271155+00:00",
+  "user_id": "nil.teste",
+  "question": "Qual o prazo de validade padrão para produtos de Classe III?",
+  "citations_count": 2,
+  "documentos_citados": [
+    "s3://nil-case-genai-docs/ANVF-MP-001_Manual_Procedimentos.pdf",
+    "s3://nil-case-genai-docs/ANVF-PT-2026-003_Parecer.pdf"
+  ],
+  "elapsed_ms": 1945,
+  "model_arn": "arn:aws:bedrock:us-east-1:539562792209:inference-profile/us.amazon.nova-2-lite-v1:0"
+}
+```
+
+Achado registrado: a consulta levou 1945 ms (quase 2 segundos) de ponta a ponta. Dado real de latência a discutir na Fase 5, se a avaliação de qualidade também tocar em performance.
 
 ## Fase 5 — Avaliação de qualidade (2 h, diferencial forte) ⬜ PENDENTE
 
